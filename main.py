@@ -1,3 +1,4 @@
+#streamlit
 import time
 from StratDict import *
 from kiteapi import *
