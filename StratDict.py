@@ -1,3 +1,4 @@
+import os
 from sklearn.neighbors import KNeighborsClassifier
 from kiteapi import *
 from pyswarm import pso
@@ -5,7 +6,10 @@ import numpy as np
 import datetime
 
 
-enctoken = "eGLz+s7WiSirPv6B5HUnc8vm8nK7XHM3DXQvDsmdx2z6TFLzYLYgqU/fKBRxbfuQSeRm5X8YtlUbUNRa4AjViqfcz2eZBdkzyE/qeQpMhpqNU1qzc3B6vA=="  
+# Session token is read from the environment, never stored in the source (see README).
+enctoken = os.environ.get('KITE_ENCTOKEN')
+if not enctoken:
+    raise SystemExit('Set the KITE_ENCTOKEN environment variable first (see README).')
 kite = KiteApp(enctoken=enctoken)
 
 # Fetch historical data

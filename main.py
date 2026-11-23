@@ -1,3 +1,4 @@
+import os
 #streamlit
 import time
 from StratDict import *
@@ -10,7 +11,10 @@ global flag
 global order
 flag = 0
 # Obtain the 'enctoken' manually from the 'kite.zerodha.com' website
-enctoken = "eGLz+s7WiSirPv6B5HUnc8vm8nK7XHM3DXQvDsmdx2z6TFLzYLYgqU/fKBRxbfuQSeRm5X8YtlUbUNRa4AjViqfcz2eZBdkzyE/qeQpMhpqNU1qzc3B6vA=="  # Replace "YOUR_ENCTOKEN_HERE" with the actual 'enctoken' obtained
+# Session token is read from the environment, never stored in the source (see README).
+enctoken = os.environ.get('KITE_ENCTOKEN')
+if not enctoken:
+    raise SystemExit('Set the KITE_ENCTOKEN environment variable first (see README).')
 
 # Create an instance of the KiteApp class with the provided 'enctoken'
 kite = KiteApp(enctoken=enctoken)
