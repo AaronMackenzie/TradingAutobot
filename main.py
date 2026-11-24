@@ -1,79 +1,110 @@
-"""GOLDBEES autobot: poll candles, ask each strategy for a signal, buy when one fires, sell when one fires.
-
-Orders are only sent when KITE_PLACE_ORDERS=1 is set in the environment; otherwise the loop prints what it
-WOULD have done. The session token comes from KITE_ENCTOKEN (see README).
-"""
 import os
+#streamlit
 import time
+from StratDict import *
+from kiteapi import *
 import datetime
+import tkinter as tk
+import time
 
-import StratDict as strategies
+global flag
+global order
+flag = 0
+# Obtain the 'enctoken' manually from the 'kite.zerodha.com' website
+# Session token is read from the environment, never stored in the source (see README).
+enctoken = os.environ.get('KITE_ENCTOKEN')
+if not enctoken:
+    raise SystemExit('Set the KITE_ENCTOKEN environment variable first (see README).')
 
+# Create an instance of the KiteApp class with the provided 'enctoken'
+kite = KiteApp(enctoken=enctoken)
+
+global asset
+# Define the asset to trade
 asset = "GOLDBEES"
-POLL_SECONDS = 60          # the original asked every second, which means a 7-day candle request per second
-PLACE_ORDERS = os.environ.get('KITE_PLACE_ORDERS') == '1'
 
 
-def first_signal(signals, data):
-    """Name of the first strategy (in list order) whose signal is True, or None. Mirrors the original elif chain."""
-    for name, fn in signals:
-        try:
-            if fn(data):
-                return name
-        except Exception as e:  # one broken strategy must not stop the others
-            print(f"{datetime.datetime.now()}: strategy {name} failed: {e}")
-    return None
-
-
-def decide(data, holding):
-    """Return ('BUY'|'SELL'|None, strategy_name). Buys only when flat, sells only when holding."""
-    if not holding:
-        name = first_signal(strategies.BUY_SIGNALS, data)
-        return ('BUY', name) if name else (None, None)
-    name = first_signal(strategies.SELL_SIGNALS, data)
-    return ('SELL', name) if name else (None, None)
-
-
-def place_market_order(kite, transaction_type):
-    if not PLACE_ORDERS:
-        return "DRY RUN: no order sent (set KITE_PLACE_ORDERS=1 to send real orders)"
-    return kite.place_order(variety=kite.VARIETY_REGULAR,
-                            exchange=kite.EXCHANGE_NSE,
-                            tradingsymbol=asset,
-                            transaction_type=transaction_type,
-                            quantity=1,
-                            product=kite.PRODUCT_MIS,
-                            order_type=kite.ORDER_TYPE_MARKET,
-                            tag="TradeViaPython")
-
-
-def run():
-    kite = strategies.get_kite()
-    holding = False
-    while True:
-        now = datetime.datetime.now()
-        try:
-            data = strategies.fetch_historical_data(kite)
-            if data is None or data.empty:
-                print(f"{now}: no candle data")
+# Function to execute buy signals for all strategies
+def execute_buy_signals():
+    try:
+        while not buy_order_placed:  # Continue executing buy signals until buy order is placed
+            # Check for buy signals from all strategies
+            if moving_average_buy_signal():
+                place_order()
+            elif bollinger_bands_buy_signal():
+                place_order()
+            elif standard_deviation_buy_signal():
+                place_order()
+            elif envelope_buy_signal():
+                place_order()
+            elif hma_buy_signal():
+                place_order()
+            elif knn_buy_signal():
+                place_order()  # Check for buy signals every 1 second
             else:
-                action, name = decide(data, holding)
-                if action == 'BUY':
-                    order = place_market_order(kite, kite.TRANSACTION_TYPE_BUY)
-                    holding = True
-                    print(f"{now}: BUY signal from {name}: {order}")
-                elif action == 'SELL':
-                    # The original "sell" cancelled the buy order; an executed market order cannot be cancelled,
-                    # so this places an opposite (SELL) market order instead.
-                    order = place_market_order(kite, kite.TRANSACTION_TYPE_SELL)
-                    holding = False
-                    print(f"{now}: SELL signal from {name}: {order}")
-                else:
-                    print(f"{now}: no {'sell' if holding else 'buy'} signal")
-        except Exception as e:
-            print(f"{now}: error: {e}")
-        time.sleep(POLL_SECONDS)
+                print('No Buy Signal')
+                
+    except Exception as e:
+        printt(e)
 
+# Function to place order for the asset
+def place_order():
+    current_datetime = datetime.datetime.now()
+    order = kite.place_order(variety=kite.VARIETY_REGULAR,               
+                         exchange=kite.EXCHANGE_NSE,                  
+                         tradingsymbol= asset,                       
+                         transaction_type=kite.TRANSACTION_TYPE_BUY, 
+                         quantity=1,                                 
+                         product=kite.PRODUCT_MIS,                  
+                         order_type=kite.ORDER_TYPE_MARKET,          
+                         price=None,                                 
+                         validity=None,                             
+                         disclosed_quantity=None,                    
+                         trigger_price=None,                         
+                         squareoff=None,                            
+                         stoploss=None,                              
+                         trailing_stoploss=None,                    
+                         tag="TradeViaPython")   
+    print(f"{current_datetime}: {order}")
+    flag = 1  # Set flag to True indicating buy order is placed
 
-if __name__ == "__main__":
-    run()
+# Function to execute sell signals for all strategies
+def execute_sell_signals():
+    try:
+        while True:
+            if buy_order_placed:  # Check if buy order is placed
+                # Check for sell signals from all strategies
+                if moving_average_sell_signal():
+                    place_sell_order()
+                elif bollinger_bands_sell_signal():
+                    place_sell_order()
+                elif standard_deviation_sell_signal():
+                    place_sell_order()
+                elif envelope_sell_signal():
+                    place_sell_order()
+                elif hma_sell_signal():
+                    place_sell_order()
+                elif knn_sell_signal():
+                    place_sell_order()
+            time.sleep(1)  # Check for sell signals every 1 second
+    
+    except Exception as e:
+        print(e)
+
+# Function to place sell order for the asset
+def place_sell_order():
+    kite.cancel_order(variety=kite.VARIETY_REGULAR,                      # Type of order variety (e.g., regular order)
+                  order_id=order,                               # ID of the order to be cancelled
+                  parent_order_id=None)
+    print(order)
+    flag=0
+
+while (flag==0):
+    time.sleep(1)
+    execute_buy_signals()
+    
+    
+    
+while (flag==1):
+    time.sleep()
+    execute_sell_signals()
